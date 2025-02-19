@@ -5,4 +5,4 @@ Runs on the [`latest`](https://github.com/ShadowMario/FNF-PsychEngine/releases/l
 
 Though, v[1.0.3](https://github.com/ShadowMario/FNF-PsychEngine/releases/tag/1.0.3) as of writing.
 ## But, what about when it ran on 0.6.3?
-Switch to branch [`backwards-compatibility`](https://github.com/rodney528/Psych-Stage-System/tree/backwards-compatibility).
+Switch to branch [`backwards-compatibility`](https://github.com/rodney528/Psych-Stage-System/tree/backwards-compatibility) but 0.6.3 is really old at this point so don't expect me to make sure it works there.
