@@ -4,5 +4,5 @@ This system gives you the to power change the stage mid-song!
 Runs on the [`latest`](https://github.com/ShadowMario/FNF-PsychEngine/releases/latest) version.
 
 Though, v[1.0.3](https://github.com/ShadowMario/FNF-PsychEngine/releases/tag/1.0.3) as of writing.
-## But, what about 0.7?
-Switch to branch `beta`.
+## But, what about when it ran on 0.6.3?
+Switch to branch [`backwards-compatibility`](https://github.com/rodney528/Psych-Stage-System/tree/backwards-compatibility).
