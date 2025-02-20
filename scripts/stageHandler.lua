@@ -182,7 +182,7 @@ local stageBase = {
 --- Checks if gf is `nil`.
 ---@return boolean result If true, gf is `nil`.
 local function isGfNil()
-	return type(getProperty('gf.x')) ~= "number"
+	return runHaxeFunction('isGfNull', {})
 end
 
 ---@type string

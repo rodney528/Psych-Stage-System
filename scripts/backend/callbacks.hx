@@ -1,7 +1,7 @@
 import backend.Mods;
 import tjson.TJSON as Json;
 
-function parseJson(directory:String, ?printWarming:Bool, ?ignoreMods:Bool) {
+function parseJson(directory:String, ?printWarming:Bool, ?ignoreMods:Bool):Dynamic {
 	if (printWarming == null) printWarming = false;
 	if (ignoreMods == null) ignoreMods = false;
 
@@ -13,7 +13,11 @@ function parseJson(directory:String, ?printWarming:Bool, ?ignoreMods:Bool) {
 	else if (!jsonExists && printWarming) debugPrint('parseJson: "' + realPath + '" doesn\'t exist!', 0xff0000);
 }
 
-function createCallbackForOthers(name:String, func:Dynamic) {
+function isGfNull():Bool {
+	return game.gf == null;
+}
+
+function createCallbackForOthers(name:String, func:Dynamic):Void {
 	for (script in game.luaArray)
 		if (script != null && script.lua != null && !script.closed)
 			if (parentLua.scriptName != script.scriptName)
