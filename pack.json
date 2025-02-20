@@ -1,0 +1,7 @@
+{
+	"name": "Stage System",
+	"description": "When using this for your mod remove the folder documentation.\nAlso don't include this pack json, I just have this as a global mod for testing.",
+	"restart": false,
+	"runsGlobally": true,
+	"color": [0, 200, 255]
+}
