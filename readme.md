@@ -1,3 +1,8 @@
+# THIS VERSION OF THE EVENT IS STILL WIP
+
+# DOWNLOAD THIS ONE --> [CLICK HERE](https://github.com/rodney528/Psych-Stage-System/tree/backwards-compatibility)
+***^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^***
+
 # Stage System
 This system gives you the to power change the stage mid-song!
 ## Psych version?
