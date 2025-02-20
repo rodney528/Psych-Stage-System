@@ -22,6 +22,7 @@ function createCallbackForOthers(name:String, func:Dynamic):Void {
 		if (script != null && script.lua != null && !script.closed)
 			if (parentLua.scriptName != script.scriptName)
 				script.addLocalCallback(name, func);
+	game.setOnHScript(name, func);
 }
 
 createGlobalCallback('precacheImage', function(key:String, ?allowGPU:Bool) {
