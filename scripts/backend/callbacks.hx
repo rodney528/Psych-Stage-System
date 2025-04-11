@@ -25,9 +25,6 @@ function createCallbackForOthers(name:String, func:Dynamic):Void {
 	game.setOnHScript(name, func);
 }
 
-createGlobalCallback('precacheImage', function(key:String, ?allowGPU:Bool) {
-	Paths.image(key, null, allowGPU == null ? true : allowGPU);
-});
 createCallbackForOthers('makeStageSprite', function(tag:String, ?image:String = null, ?x:Float = 0, ?y:Float = 0) {
 	parentLua.call('makeStageSprite', [tag, image, x, y]);
 });
