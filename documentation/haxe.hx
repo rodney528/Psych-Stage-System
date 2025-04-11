@@ -3,11 +3,11 @@
 /**
  * The current stage.
  */
-var curStage:String = PlayState.curStage;
+var curStage:String; // assigned through main script
 /**
  * The stage position offset.
  */
-var stageOffsets:{x:Float, y:Float} = {x: 0, y: 0}
+var stageOffsets:{x:Float, y:Float} // assigned through main script
 
 
 
