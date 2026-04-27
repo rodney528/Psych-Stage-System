@@ -1,15 +1,12 @@
 > [!IMPORTANT]
-> # THIS VERSION OF THE EVENT IS STILL WIP
+> # THIS VERSION OF THE EVENT IS NOW WIP!
 >
-> # DOWNLOAD THIS ONE --> [CLICK HERE](https://github.com/rodney528/Psych-Stage-System/tree/backwards-compatibility)
+> # MAY NOT WORK 100% ON *0.6.3* AND *1.0.4!*
 > ***^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^***
 # Stage System
 This system gives you the to power change the stage mid-song!
 ## Psych version?
-Runs on the [`latest`](https://github.com/ShadowMario/FNF-PsychEngine/releases/latest) version.
+This runs on [`0.6.3`](https://github.com/ShadowMario/FNF-PsychEngine/releases/tag/0.6.3), [`0.7.3`](https://github.com/ShadowMario/FNF-PsychEngine/releases/tag/0.7.3) and [`1.0.4` (latest)](https://github.com/ShadowMario/FNF-PsychEngine/releases/tag/1.0.4).
 
-Though lastest is version [`1.0.3`](https://github.com/ShadowMario/FNF-PsychEngine/releases/tag/1.0.3) as of writing.
-## But, what about when it ran on 0.6.3?
-Switch to branch [`backwards-compatibility`](https://github.com/rodney528/Psych-Stage-System/tree/backwards-compatibility) to use on [`0.7.3`](https://github.com/ShadowMario/FNF-PsychEngine/releases/tag/0.7.3)!
-
-Version [`0.6.3`](https://github.com/ShadowMario/FNF-PsychEngine/releases/tag/0.6.3) is really old at this point, I don't have much of a point in making sure it works there.
+> [!NOTE]
+> Note: Even though latest is supported, this version of the event ***does not*** have stage json support!
