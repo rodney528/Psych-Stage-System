@@ -1,22 +1,4 @@
-import backend.Mods;
-import tjson.TJSON as Json;
-
-function parseJson(directory:String, ?printWarming:Bool, ?ignoreMods:Bool):Dynamic {
-	if (printWarming == null) printWarming = false;
-	if (ignoreMods == null) ignoreMods = false;
-
-	final funnyPath:String = directory + '.json';
-	final jsonContents:String = Paths.getTextFromFile(funnyPath, ignoreMods);
-	final realPath:String = (ignoreMods ? '' : Paths.modFolders(Mods.currentModDirectory)) + '/' + funnyPath;
-	final jsonExists:Bool = Paths.fileExists(realPath, null, ignoreMods);
-	if (jsonContents != null || jsonExists) return Json.parse(jsonContents);
-	else if (!jsonExists && printWarming) debugPrint('parseJson: "' + realPath + '" doesn\'t exist!', 0xff0000);
-}
-
-function isGfNull():Bool {
-	return game.gf == null;
-}
-
+// mainly for v0.7 and above
 function createCallbackForOthers(name:String, func:Dynamic):Void {
 	for (script in game.luaArray)
 		if (script != null && script.lua != null && !script.closed)

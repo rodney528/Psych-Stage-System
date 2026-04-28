@@ -1,3 +1,11 @@
 {
+	"cSpell.words": [
+		"aseprite",
+		"jsoni",
+		"noaa",
+		"sparrowv",
+		"textureatlass"
+	],
+
 	"funkinscriptautocomplete.luaEngine": "psych_latest"
 }

@@ -1,194 +1,407 @@
+-- Script by @rodney528
+
 --[[
 Plans -
 	Figure out pixel stage shenanigans / 90%
 ]]--
 
----@param variable any The `variable` you want to check.
----@param ifNil any What should be returned if the `variable` is `nil`.
----@param shouldBe? 'number'|'string'|'boolean' What should be the `variable` type be?
----@return any ifNil Shall return `ifNil`.
-local function checkVarData(variable, ifNil, shouldBe)
-	if shouldBe == 'number' then
-		local nilTest = tonumber(variable)
-		return type(nilTest) ~= 'number' and ifNil or nilTest
-	elseif shouldBe == 'string' then return tostring(variable)
-	elseif shouldBe == 'boolean' then
-		if type(variable) == 'boolean' then return variable
-		elseif type(variable) == 'string' then
-			local nilTest = stringTrim(variable:lower())
-			if nilTest == 'true' then return true -- screw coding
-			elseif nilTest == 'false' then return false end
-			return ifNil
-		elseif type(variable) == 'number' then
-			if variable >= 1 then return true -- screw coding
-			elseif variable <= 0 then return false end
-			return ifNil -- jic
-		else return ifNil end
-	end
-	local nilTest = variable
-	if type(variable) == 'nil' then nilTest = ifNil end
-	return nilTest
+-- Utility functions.
+
+---Check's if the input is nil.
+---@generic input
+---@param variable any
+---@param ifNil input
+---@return input
+local function nilCheck(variable, ifNil)
+	return (type(variable) == 'nil' or variable == nil) and ifNil or variable
 end
 
----@param stage string Stage file name.
----@param isJson? boolean If true, it should add the json file typing.
+---Check's if your running on v1 instances of Psych Engine.
+---@param exact? boolean If true, it will look for v1.0.4 specifically.
+---@return boolean
+local function isNew(exact)
+	return nilCheck(exact, false) and version == '1.0.4' or version >= '1.0'
+end
+---Check's if your running on v0.7 instances of Psych Engine.
+---@param exact? boolean If true, it will look for v0.7.3 specifically.
+---@return boolean
+local function isLegacy(exact)
+	return nilCheck(exact, false) and version == '0.7.3' or (version <= '0.7.3' and version >= '0.7')
+end
+---Check's if your running on v0.6 instances of Psych Engine.
+---@param exact? boolean If true, it will look for v0.6.3 specifically.
+---@return boolean
+local function isBeta(exact)
+	return nilCheck(exact, false) and version == '0.6.3' or (version <= '0.6.3' and version >= '0.6')
+end
+
+---String interpolation in lua!
+---@param ... any
+---@return string
+local function f(...)
+	---@param value table
+	---@return string
+	local function stringifyTable(value)
+		-- can't use "_setVar" because it uses "f" and I don't wanna put "f" anymore downwards than it has to be
+		if isBeta() then
+			runHaxeCode([[ setVar('f_varHolder', null); ]])
+			setProperty('f_varHolder', value)
+		else
+			setVar('f_varHolder', value)
+		end
+
+		-- can't use "prepImports" here for the same reason as "_setVar"
+		if not isNew() then addHaxeLibrary('Std') end
+		runHaxeCode((isNew() and 'import Std;' or '') .. [[ setVar('f_varHolder', Std.string(getVar('f_varHolder'))); ]])
+		return getProperty('f_varHolder')
+	end
+
+	local final = ''
+	for index, value in pairs({...}) do
+		local part = value
+		part = type(part) == 'table' and stringifyTable(part) or tostring(part)
+		part = nilCheck(part, 'nil')
+		final = final .. part
+	end
+	return final
+end
+
+---Split's a piece of string into an array.
+---@param text string
+---@param delimiter string
+---@return string[]
+local function textSplit(text, delimiter)
+	local splitTxt = stringSplit(text, delimiter) ---@type string[]
+	for index, value in pairs(splitTxt) do
+		splitTxt[index] = stringTrim(value)
+	end
+	return splitTxt
+end
+
+---Useful for prepping imports for runHaxeCode usage.
+---
+---## example:
+---```lua
+---runHaxeCode(f(
+---	prepImports({'flixel.addons.display.FlxBackdrop'}),
+---	[[ var ahh:FlxBackdrop = new FlxBackdrop(Paths.image('characters/BOYFRIEND')); ]]
+---))
+---```
+---@param imports string[] The imports to prep.
+---@return string
+local function prepImports(imports)
+	local final = ''
+	for index, path in pairs(imports) do
+		if isBeta() then
+			runHaxeCode(f([[
+				var preppedImports:Array<String> = ']], path, [['.split('.');
+				setVar('prepImports_varHolder', [preppedImports.pop(), preppedImports.join('.')]);
+			]]))
+			local finalzedImport = getProperty('prepImports_varHolder') ---@type string[][]
+			addHaxeLibrary(finalzedImport[1], finalzedImport[2])
+		else
+			final = f(final, 'import ', path, ';\n')
+		end
+	end
+	return final
+end
+
+---Checks if the charting mode is active.
+---@return boolean
+local function isChartingMode()
+	return getPropertyFromClass(f(isBeta() and '' or 'states.', 'PlayState'), 'chartingMode')
+end
+
+---A shortcut function for debugPrint with some extra stuff to it.
+---@param value any What you wish to debugPrint.
+---@param isDebug? boolean If true, this will only print when in charting mode.
+local function trace(value, isDebug)
+	if nilCheck(isDebug, false) then
+		if isChartingMode() or luaDebugMode then
+			debugPrint(f(value))
+		end
+	else -- wrapped in "f" jic you pop a single table in here
+		debugPrint(f(value))
+	end
+end
+
+---Returns the contents of a json file.
+---@param path string The file path.
+---@param printWarning? boolean If true, it will print a warning if the file doesn't exist.
+---@return table | nil
+local function parseJson(path, printWarning)
+	local filePath = f(path, '.json')
+	local fileContents = ''
+	if checkFileExists(filePath) then
+		fileContents = getTextFromFile(filePath) ---@type string
+	else
+		if printWarning then
+			trace(f('File not found: ', filePath))
+		end
+		return nil
+	end
+
+	runHaxeCode(f(
+		prepImports({'haxe.format.JsonParser'}),
+		[[ var fileContents:String = ']], fileContents, [[';
+		var jsonData = new JsonParser(fileContents).doParse();
+		setVar('jsonData_varHolder', jsonData); ]]
+	))
+
+	return getProperty('jsonData_varHolder')
+end
+
+---Used to make setVar usage compatible with older versions.
+---@param variable string The variable name.
+---@param value any What the variable stores.
+local function _setVar(variable, value)
+	if isBeta() then
+		runHaxeCode(f('setVar("',  variable,  '", null);'))
+		setProperty(variable, value)
+	else
+		setVar(variable, value)
+	end
+end
+
+---Used to make setOnScripts usage compatible with older versions.
+---@param variable string The variable name.
+---@param value any What the variable stores.
+---@param ignoreSelf? boolean Wether to not set the variable on itself.
+---@param exclusions? string[] Specific scripts to not set the variable for.
+---@param luaOnly? boolean If true, it only calls setOnLuas when on newer versions.
+local function _setOnScripts(variable, value, ignoreSelf, exclusions, luaOnly)
+	if isBeta() then
+		_setVar('setOnLuas_varHolder', {variable, value})
+		runHaxeCode([[
+			var varHolder:Array<Dynamic> = getVar('setOnLuas_varHolder');
+			game.setOnLuas(varHolder[0], varHolder[1]);
+			varHolder.resize(0);
+		]])
+	else
+		ignoreSelf = nilCheck(ignoreSelf, false)
+		exclusions = nilCheck(exclusions, {})
+		if nilCheck(luaOnly, false) then
+			setOnLuas(variable, value, ignoreSelf, exclusions)
+		else
+			setOnScripts(variable, value, ignoreSelf, exclusions)
+		end
+	end
+end
+
+---Used to make callOnScripts usage compatible with older versions.
+---@param func string The function name.
+---@param arguments? any[] The function arguments.
+---@param ignoreStops? boolean Wether to ignore "Function_Stop" calls.
+---@param ignoreSelf? boolean Wether the script should ignore itself. Useful for preventing recursion!
+---@param excludedScripts? string[] Specific scripts to not call upon.
+---@param excludedValues? any[] Values to prevent from being returned.
+---@param luaOnly? boolean If true, it only calls callOnLuas when on newer versions.
+---@return any returnValue Note: Always returns true on 0.7.3 for some reason? Might add a workaround, but I'm unsure atm.
+local function _callOnScripts(func, arguments, ignoreStops, ignoreSelf, excludedScripts, excludedValues, luaOnly)
+	arguments = nilCheck(arguments, {})
+	ignoreStops = nilCheck(ignoreStops, false)
+	ignoreSelf = nilCheck(ignoreSelf, true)
+	excludedScripts = nilCheck(excludedScripts, {})
+	if isBeta() then
+		return callOnLuas(func, arguments, ignoreSelf, excludedScripts)
+	else
+		excludedValues = nilCheck(excludedValues, {})
+		if nilCheck(luaOnly, false) then
+			return callOnLuas(func, arguments, ignoreStops, ignoreSelf, excludedScripts, excludedValues)
+		else
+			return callOnScripts(func, arguments, ignoreStops, ignoreSelf, excludedScripts, excludedValues)
+		end
+	end
+end
+
+-- This Scripts Utility Functions.
+
+---Helper class for X and Y positions.
+---@class LuaPoint
+LuaPoint = {
+	x = 0, ---@type number The X position.
+	y = 0 ---@type number The Y position.
+}
+
+---@type LuaPoint
+stageOffsets = nil
+
+---Helper function for setting the stage offsets.
+---@param x number The X offset.
+---@param y number The Y offset.
+local function setStageOffsets(x, y)
+	_setOnScripts('stageOffsets', {
+		x = nilCheck(x, 0),
+		y = nilCheck(y, 0)
+	})
+
+end
+
+---@todo Maybe have it return an array to allow both lua and haxe at the same time?
+---@param stage string The stage file name.
+---@param isJson? boolean If true, it will add the json file extension instead detecting the scripts extension.
 ---@return string
 local function stageScript(stage, isJson)
-	local hehePath = 'stages/' .. stage
-	if checkVarData(isJson, false, 'boolean') then
-		if checkFileExists(hehePath .. '.json') then
-			return hehePath .. '.json'
+	local hehePath = f('stages/', stage)
+	if nilCheck(isJson, false) then
+		if checkFileExists(f(hehePath, '.json')) then
+			return f(hehePath, '.json')
 		end
 	else
-		if checkFileExists(hehePath .. '.lua') then
-			return hehePath .. '.lua'
+		if checkFileExists(f(hehePath, '.lua')) then
+			return f(hehePath, '.lua')
 		end
-		if checkFileExists(hehePath .. '.hx') then
-			return hehePath .. '.hx'
+		if checkFileExists(f(hehePath, '.hx')) then
+			return f(hehePath, '.hx')
 		end
 	end
 	return 'aww shit'
 end
 
----@param name string Callback name.
----@param args any[] Function arguments.
-local function callFunc(name, args)
-	if getPropertyFromClass('states.PlayState', 'chartingMode') and name ~= 'precacheStage' then
+---@param func string The function name.
+---@param arguments? any[] The function arguments.
+local function callFunc(func, arguments)
+	if isChartingMode() and func ~= 'precacheStage' then
 		local fileToString = getTextFromFile(stageScript(curStage))
 		if not string.find(fileToString, 'onStageCreation') or not string.find(fileToString, 'onStageDestruction') then
-			debugPrint('Where tf is "' .. name .. '"?? You need that!!!')
+			trace(f('Where tf is "', func, '"?? You need that!!!'))
 		end
 	end
-	callOnScripts(name, args, true, true, {scriptName}, nil)
+	_callOnScripts(func, arguments, true)
 end
 
----@param character string Character tag.
----@param x number X position.
----@param y number Y position.
+---@param character string The character tag.
+---@param x number The X position.
+---@param y number The Y position.
 local function changeCharXY(character, x, y)
-	-- setProperty(character .. '.x', 0)
-	-- setProperty(character .. '.y', 0)
-	setProperty(character .. 'Group.x', x)
-	setProperty(character .. 'Group.y', y)
+	if character == 'dad' or character == 'boyfriend' or character == 'gf' then
+		setProperty(f(character, 'Group.x'), x)
+		setProperty(f(character, 'Group.y'), y)
+	else
+		trace(f('Invalid character: ', character, ', your choices are "dad", "boyfriend", or "gf".'), true)
+	end
 end
 
----@param path string Script path.
+---@param path string The script path.
 ---@param ignoreAlreadyRunning? boolean If true, it will add the script again if it's already added.
 local function addScript(path, ignoreAlreadyRunning)
-	ignoreAlreadyRunning = checkVarData(ignoreAlreadyRunning, false, 'boolean')
-	if checkFileExists(path .. '.lua') then
+	ignoreAlreadyRunning = nilCheck(ignoreAlreadyRunning, false)
+	if checkFileExists(f(path, '.lua')) then
 		addLuaScript(path, ignoreAlreadyRunning)
 	end
-	if checkFileExists(path .. '.hx') then
+	if checkFileExists(f(path, '.hx')) then
 		addHScript(path, ignoreAlreadyRunning)
 	end
 end
 ---@param path string Script path.
----@param ignoreAlreadyRunning? boolean If true, it will remove the script again, even if one doesn't exist.
-local function removeScript(path, ignoreAlreadyRunning)
-	ignoreAlreadyRunning = checkVarData(ignoreAlreadyRunning, false, 'boolean')
-	if checkFileExists(path .. '.lua') then
-		removeLuaScript(path, ignoreAlreadyRunning)
+local function removeScript(path)
+	if checkFileExists(f(path, '.lua')) then
+		removeLuaScript(path)
 	end
-	if checkFileExists(path .. '.hx') then
-		removeHScript(path, ignoreAlreadyRunning)
+	if checkFileExists(f(path, '.hx')) then
+		removeHScript(path)
 	end
 end
 
---- Is just makeLuaSprite.
----@param tag string Sprite tag name.
----@param image string Sprite image.
----@param x number X position.
----@param y number Y position.
+---Is just makeLuaSprite.
+---@param tag string The sprite tag name.
+---@param image string The sprite image.
+---@param x number The X position.
+---@param y number The Y position.
 function makeStageSprite(tag, image, x, y)
 	makeLuaSprite(tag, image, x, y)
 	applyStageOffsets(tag)
 end
---- Is just makeAnimatedLuaSprite.
----@param tag string Sprite tag name.
----@param image string Sprite image.
----@param x number X position.
----@param y number Y position.
----@param spriteType 'tex'|'texture'|'textureatlas'|'texture_noaa'|'textureatlass_noaa'|'tex_noaa'|'packer'|'packeratlas'|'pac' The type of sprite to load.
+---Is just makeAnimatedLuaSprite.
+---@param tag string The sprite tag name.
+---@param image string The sprite image.
+---@param x number The X position.
+---@param y number The Y position.
+---@param spriteType string | 'aseprite' | 'ase' | 'json' | 'jsoni8' | 'packer' | 'packeratlas' | 'pac' | 'sparrow' | 'sparrowatlas' | 'sparrowv2' The type of sprite to load.
 function makeAnimatedStageSprite(tag, image, x, y, spriteType)
 	makeAnimatedLuaSprite(tag, image, x, y, spriteType)
 	applyStageOffsets(tag)
 end
---- Quickly apply `stageOffsets` to any object.
----@param tag string Sprite tag name.
+---Quickly applies stageOffsets to ***any* object**.
+---@param tag string The sprite tag name.
 function applyStageOffsets(tag)
-	setProperty(tag .. '.x', getProperty(tag .. '.x') + stageOffsets.x)
-	setProperty(tag .. '.y', getProperty(tag .. '.y') + stageOffsets.y)
+	setProperty(f(tag, '.x'), getProperty(f(tag, '.x')) + stageOffsets.x)
+	setProperty(f(tag, '.y'), getProperty(f(tag, '.y')) + stageOffsets.y)
+end
+
+-- Where the magic happens!
+
+function onCreate()
+	-- trace(f('Is New: ', isNew(true), ', Is Legacy: ', isLegacy(true), ', Is Beta: ', isBeta(true)), true)
+	if version < '0.6' then
+		trace(f(
+			'Hey this script only works on Psych v0.6 and above!\n',
+			'Psych v', version, ' isn\'t compatible with the script whatsoever!'
+		))
+		return close(true)
+	elseif not (isNew(true) or isLegacy(true) or isBeta(true)) then
+		trace(f(
+			'Hey this script might not work properly on Psych v', version, '!\n',
+			'If you wish for the script to work appropriately please use versions...\n',
+			'v0.6.3, v0.7.3 or v1.0.4! If the script works perfectly fine then just ignore this message.'
+		), true)
+	end
 end
 
 function onCreatePost()
-	if stageOffsets == nil then setOnScripts('stageOffsets', {x = 0, y = 0}) end
-	setOnScripts('curStage', curStage)
-	runHaxeCode(getTextFromFile('scripts/backend/callbacks.hx'))
-	addScript('stages/' .. curStage)
-	callFunc('precacheStage', {})
+	if stageOffsets == nil then setStageOffsets() end
+	_setOnScripts('curStage', curStage)
+	if not isBeta() then runHaxeCode(getTextFromFile('scripts/backend/callbacks.hx')) end
+	addScript(f('stages/', curStage))
+	callFunc('precacheStage')
 	callFunc('onStageCreation', {true})
 end
 
 function onEventPushed(name, value1, value2)
 	if name == 'Starting Stage Offsets' then
-		setOnScripts('stageOffsets', {x = tonumber(value1), y = tonumber(value2)})
+		setStageOffsets(tonumber(value1), tonumber(value2))
 	end
 
 	if name == 'Change The Stage' then
-		---@type {v1:string[], v2:string[]}
 		local valueContents = {v1 = {}, v2 = {}}
 		valueContents.v1 = textSplit(value1, ',')
 		valueContents.v2 = textSplit(value2, ',')
 
 		if checkFileExists(stageScript(valueContents.v1[1])) and valueContents.v1[1] ~= curStage then
-			addScript('stages/' .. valueContents.v1[1])
-			callFunc('precacheStage', {})
-			-- removeScript('stages/' .. valueContents.v1[1]) -- can't do this for some reason
+			addScript(f('stages/', valueContents.v1[1]))
+			callFunc('precacheStage')
+			-- removeScript(f('stages/', valueContents.v1[1])) -- can't do this for some reason
 		end
 	end
 end
 
 ---@class StageFile
-local stageBase = {
-	---@type string
-	directory = '',
-	---@type number
-	defaultZoom = 0.9,
-	---@type boolean
-	isPixelStage = false,
-	---@type string
-	stageUI = 'normal',
+local StageBase = {
+	directory = '', ---@type string The asset directory for the library. Goes used for soft coding.
+	defaultZoom = 0.9, ---@type number The starting camera zoom.
+	isPixelStage = false, ---@type boolean Wether the stage is a pixel stage. Is pretty much deprecated in v0.7 and beyond.
+	stageUI = 'normal', ---@type string | 'normal' | 'pixel' The stages ui type.
 
-	---@type number[]
-	boyfriend = {770, 100},
-	---@type number[]
-	girlfriend = {400, 130},
-	---@type number[]
-	opponent = {100, 100},
-	---@type boolean
-	hide_girlfriend = false,
+	boyfriend = {770, 100}, ---@type number[] Boyfriend's starting position.
+	girlfriend = {400, 130}, ---@type number[] Girlfriend's starting position.
+	opponent = {100, 100}, ---@type number[] Opponent's starting position.
+	hide_girlfriend = false, ---@type boolean Wether girlfriend should be hidden.
 
-	---@type number[]
-	camera_boyfriend = {0, 0},
-	---@type number[]
-	camera_opponent = {0, 0},
-	---@type number[]
-	camera_girlfriend = {0, 0},
-	---@type number
-	camera_speed = 1
+	camera_boyfriend = {0, 0}, ---@type number[] Boyfriend's camera offset.
+	camera_opponent = {0, 0}, ---@type number[] Opponent's camera offset.
+	camera_girlfriend = {0, 0}, ---@type number[] Girlfriend's camera offset.
+	camera_speed = 1 ---@type number The stages camera speed.
 }
 
---- Checks if gf is `nil`.
----@return boolean result If true, gf is `nil`.
+---Checks if gf is nil.
+---@return boolean result If true, gf is nil.
 local function isGfNil()
-	return runHaxeFunction('isGfNull', {})
+	runHaxeCode("setVar('isGfNil_varHolder', game.gf == null);")
+	return getProperty('isGfNil_varHolder')
 end
 
----@type string
-local lastGf = getPropertyFromClass('states.PlayState', 'SONG.gfVersion')
----@type number
-local lastAlpha = 1
+local lastGf = getPropertyFromClass(f(isBeta() and '' or 'states.', 'PlayState'), 'SONG.gfVersion') ---@type string
+local lastAlpha = 1 ---@type number
 function onEvent(name, value1, value2)
 	if name == 'Change Character' then
 		if value1 == 'gf' or value1 == 'girlfriend' or value1 == '1' then
@@ -201,50 +414,54 @@ function onEvent(name, value1, value2)
 	end
 
 	if name == 'Change The Stage' then
-		---@type {v1:string[], v2:string[]}
 		local valueContents = {v1 = {}, v2 = {}}
+
 		valueContents.v1 = textSplit(value1, ',')
-		---@type boolean
-		local snapChanges = checkVarData(valueContents.v1[2], false, 'boolean')
-		---@type boolean
-		local snapCamera = checkVarData(valueContents.v1[3], false, 'boolean')
+		local snapChanges = nilCheck(valueContents.v1[2], 'false') == 'true'
+		local snapCamera = nilCheck(valueContents.v1[3], 'false') == 'true'
+
 		valueContents.v2 = textSplit(value2, ',')
-		for i = 1, 2 do valueContents.v2[i] = checkVarData(valueContents.v2[i], 0, 'number') end
+		for i = 1, 2 do
+			valueContents.v2[i] = tonumber(nilCheck(valueContents.v2[i], '0'))
+			valueContents.v2[i] = nilCheck(valueContents.v2[i], 0)
+		end
 
 		---@type string, string
 		local oldStage, newStage = curStage, valueContents.v1[1]
 		if checkFileExists(stageScript(newStage, true)) then
 			if checkFileExists(stageScript(oldStage)) then -- Stage Removal
 				callFunc('onStageDestruction', {snapChanges})
-				-- removeScript('stages/' .. oldStage) -- can't do this for some reason
+				-- removeScript(f('stages/', oldStage)) -- can't do this for some reason
 			end
 
-			if getPropertyFromClass('states.PlayState', 'chartingMode') then -- Stupid print cause yes
-				debugPrint('Changing stage from "' .. oldStage .. '" to "' .. newStage .. '".')
-			end
+			trace(f('Changing stage from "', oldStage, '" to "', newStage, '".'), true) -- Stupid print cause yes
 
 			-- Stage Elements
+
+			---The stage to change to.
 			---@type StageFile
-			local stageGet = runHaxeFunction('parseJson', {stageScript(newStage, true):gsub('.json', '')})
+			local stageGet = parseJson(stageScript(newStage, true):gsub('.json', ''), isChartingMode())
+
+			---The finalized file.
 			---@type StageFile
 			local jsonFile = {
-				directory = checkVarData(stageGet.directory, stageBase.directory, 'string'),
-				defaultZoom = checkVarData(stageGet.defaultZoom, stageBase.defaultZoom, 'number'),
-				isPixelStage = checkVarData(stageGet.isPixelStage, stageBase.isPixelStage, 'boolean'),
-				stageUI = checkVarData(stageGet.stageUI, stageBase.stageUI, 'string'),
+				directory = nilCheck(stageGet.directory, StageBase.directory),
+				defaultZoom = nilCheck(stageGet.defaultZoom, StageBase.defaultZoom),
+				isPixelStage = nilCheck(stageGet.isPixelStage, StageBase.isPixelStage),
+				stageUI = nilCheck(stageGet.stageUI, StageBase.stageUI),
 
-				boyfriend = stageGet.boyfriend,
-				girlfriend = stageGet.girlfriend,
-				opponent = stageGet.opponent,
-				hide_girlfriend = checkVarData(stageGet.hide_girlfriend, stageBase.hide_girlfriend, 'boolean'),
+				boyfriend = nilCheck(stageGet.boyfriend, StageBase.boyfriend),
+				girlfriend = nilCheck(stageGet.girlfriend, StageBase.girlfriend),
+				opponent = nilCheck(stageGet.opponent, StageBase.opponent),
+				hide_girlfriend = nilCheck(stageGet.hide_girlfriend, StageBase.hide_girlfriend),
 
-				camera_boyfriend = stageGet.camera_boyfriend,
-				camera_opponent = stageGet.camera_boyfriend,
-				camera_girlfriend = stageGet.camera_boyfriend,
-				camera_speed = checkVarData(stageGet.camera_speed, stageBase.camera_speed, 'number')
+				camera_boyfriend = nilCheck(stageGet.camera_boyfriend, StageBase.camera_boyfriend),
+				camera_opponent = nilCheck(stageGet.camera_opponent, StageBase.camera_opponent),
+				camera_girlfriend = nilCheck(stageGet.camera_girlfriend, StageBase.camera_girlfriend),
+				camera_speed = nilCheck(stageGet.camera_speed, StageBase.camera_speed)
 			}
 
-			setOnScripts('stageOffsets', {x = valueContents.v2[1], y = valueContents.v2[2]})
+			setStageOffsets(valueContents.v2[1], valueContents.v2[2])
 
 			if jsonFile.hide_girlfriend then
 				if not isGfNil() then
@@ -255,30 +472,30 @@ function onEvent(name, value1, value2)
 						game.gf.alpha = 0.00001;
 						game.gf = null;
 					]])
-					setOnScripts('gfName', nil)
+					_setOnScripts('gfName', nil)
 				end
 			else
 				if isGfNil() then
-					runHaxeCode([[
-						var prevGf:String = ']] .. lastGf .. [[';
+					runHaxeCode(f([[
+						var prevGf:String = ']], lastGf, [[';
 						if (!game.gfMap.exists(prevGf)) game.addCharacterToList(prevGf, 2);
 						game.gf = game.gfMap.get(prevGf);
-						game.gf.alpha = ]] .. lastAlpha .. [[;
-					]])
-					setOnScripts('gfName', lastGf)
+						game.gf.alpha = ]], lastAlpha, [[;
+					]]))
+					_setOnScripts('gfName', lastGf)
 				end
 			end
 
-			setOnScripts('defaultOpponentX', checkVarData(stageOffsets.x + jsonFile.opponent[1], 100, 'number'))
-			setOnScripts('defaultOpponentY', checkVarData(stageOffsets.y + jsonFile.opponent[2], 100, 'number'))
+			_setOnScripts('defaultOpponentX', stageOffsets.x + jsonFile.opponent[1])
+			_setOnScripts('defaultOpponentY', stageOffsets.y + jsonFile.opponent[2])
 			setProperty('DAD_X', defaultOpponentX)
 			setProperty('DAD_Y', defaultOpponentY)
-			setOnScripts('defaultGirlfriendX', checkVarData(stageOffsets.x + jsonFile.girlfriend[1], 400, 'number'))
-			setOnScripts('defaultGirlfriendY', checkVarData(stageOffsets.y + jsonFile.girlfriend[2], 130, 'number'))
+			_setOnScripts('defaultGirlfriendX', stageOffsets.x + jsonFile.girlfriend[1])
+			_setOnScripts('defaultGirlfriendY', stageOffsets.y + jsonFile.girlfriend[2])
 			setProperty('GF_X', defaultGirlfriendX)
 			setProperty('GF_Y', defaultGirlfriendY)
-			setOnScripts('defaultBoyfriendX', checkVarData(stageOffsets.x + jsonFile.boyfriend[1], 770, 'number'))
-			setOnScripts('defaultBoyfriendY', checkVarData(stageOffsets.y + jsonFile.boyfriend[2], 100, 'number'))
+			_setOnScripts('defaultBoyfriendX', stageOffsets.x + jsonFile.boyfriend[1])
+			_setOnScripts('defaultBoyfriendY', stageOffsets.y + jsonFile.boyfriend[2])
 			setProperty('BF_X', defaultBoyfriendX)
 			setProperty('BF_Y', defaultBoyfriendY)
 
@@ -286,45 +503,34 @@ function onEvent(name, value1, value2)
 			if not isGfNil() then changeCharXY('gf', defaultGirlfriendX, defaultGirlfriendY) end
 			changeCharXY('boyfriend', defaultBoyfriendX, defaultBoyfriendY)
 
-			setProperty('opponentCameraOffset[0]', checkVarData(jsonFile.camera_opponent[1], 0, 'number'))
-			setProperty('opponentCameraOffset[1]', checkVarData(jsonFile.camera_opponent[2], 0, 'number'))
-			setProperty('girlfriendCameraOffset[0]', checkVarData(jsonFile.camera_girlfriend[1], 0, 'number'))
-			setProperty('girlfriendCameraOffset[1]', checkVarData(jsonFile.camera_girlfriend[2], 0, 'number'))
-			setProperty('boyfriendCameraOffset[0]', checkVarData(jsonFile.camera_boyfriend[1], 0, 'number'))
-			setProperty('boyfriendCameraOffset[1]', checkVarData(jsonFile.camera_boyfriend[2], 0, 'number'))
+			setProperty('opponentCameraOffset[0]', nilCheck(jsonFile.camera_opponent[1], 0))
+			setProperty('opponentCameraOffset[1]', nilCheck(jsonFile.camera_opponent[2], 0))
+			setProperty('girlfriendCameraOffset[0]', nilCheck(jsonFile.camera_girlfriend[1], 0))
+			setProperty('girlfriendCameraOffset[1]', nilCheck(jsonFile.camera_girlfriend[2], 0))
+			setProperty('boyfriendCameraOffset[0]', nilCheck(jsonFile.camera_boyfriend[1], 0))
+			setProperty('boyfriendCameraOffset[1]', nilCheck(jsonFile.camera_boyfriend[2], 0))
 
-			setProperty('cameraSpeed', checkVarData(jsonFile.camera_speed, 1, 'number'))
+			setProperty('cameraSpeed', nilCheck(jsonFile.camera_speed, 1))
 
 			runHaxeCode('game.moveCameraSection();')
-			setProperty('defaultCamZoom', checkVarData(jsonFile.defaultZoom, 0.9, 'number'))
+			setProperty('defaultCamZoom', nilCheck(jsonFile.defaultZoom, 0.9))
             if snapCamera then
                 runHaxeCode('FlxG.camera.snapToTarget();')
 				setProperty('camGame.zoom', getProperty('defaultCamZoom'))
 			end
-			setPropertyFromClass('states.PlayState', 'stageUI', checkVarData(jsonFile.stageUI, jsonFile.isPixelStage and 'pixel' or 'normal', 'string'))
+			if isBeta() then
+				setPropertyFromClass('PlayState', 'isPixelStage', nilCheck(jsonFile.isPixelStage, false))
+			else
+				setPropertyFromClass('states.PlayState', 'stageUI', nilCheck(jsonFile.stageUI, nilCheck(jsonFile.isPixelStage, false) and 'pixel' or 'normal'))
+			end
 
-			setOnScripts('curStage', newStage) -- Stage Addition
+			_setOnScripts('curStage', newStage) -- Stage Addition
 			if checkFileExists(stageScript(newStage)) then
-				-- addScript('stages/' .. newStage) -- basically useless rn
+				-- addScript(f('stages/', newStage)) -- basically useless rn
 				callFunc('onStageCreation', {snapChanges})
 			end
 		else
-			if getPropertyFromClass('states.PlayState', 'chartingMode') then
-				debugPrint('Stage "' .. newStage .. '" doesn\'t exist.')
-			end
+			trace(f('Stage "', newStage, '" doesn\'t exist.'), true)
 		end
 	end
-end
-
---- Split's a `string` into a `string[]`
----@param str string
----@param delimiter string
----@return string[]
-function textSplit(str, delimiter)
-	---@type string[]
-	local splitTxt = stringSplit(str, delimiter)
-	for index, value in pairs(splitTxt) do
-		splitTxt[index] = stringTrim(value)
-	end
-	return splitTxt
 end

@@ -4,6 +4,7 @@
  * The current stage.
  */
 var curStage:String; // assigned through main script
+
 /**
  * The stage position offset.
  */
@@ -19,18 +20,20 @@ var stageOffsets:{x:Float, y:Float} // assigned through main script
 function precacheStage():Void {
 	// precache stage object images
 }
+
 /**
  * Called when a stage is created.
- * @param snapChanges
+ * @param snapChanges Wether the changes are immediate or not.
  */
 function onStageCreation(snapChanges:Bool):Void {
 	if (curStage == 'name') {
 		// create stage objects
 	}
 }
+
 /**
  * Called when a stage is destroyed.
- * @param snapChanges
+ * @param snapChanges Wether the changes are immediate or not.
  */
 function onStageDestruction(snapChanges:Bool):Void {
 	if (curStage == 'name') {
