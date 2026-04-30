@@ -1,43 +1,47 @@
--- Script by @rodney528
+----- [[ Script by @rodney528 ]] -----
 
+----- [[ Plans ]] -----
+---
 --[[
-Plans -
+
 	Figure out pixel stage shenanigans / 90%
+
 ]]--
 
--- Utility functions.
+----- [[ Utility Functions ]] -----
 
 ---Check's if the input is nil.
 ---@generic input
----@param variable any
----@param ifNil input
----@return input
+---@param variable any The data to check.
+---@param ifNil input What should be returned if nil.
+---@return input # The checked data.
 local function nilCheck(variable, ifNil)
 	return (type(variable) == 'nil' or variable == nil) and ifNil or variable
 end
 
 ---Check's if your running on v1 instances of Psych Engine.
 ---@param exact? boolean If true, it will look for v1.0.4 specifically.
----@return boolean
+---@return boolean # The results of the check.
 local function isNew(exact)
 	return nilCheck(exact, false) and version == '1.0.4' or version >= '1.0'
 end
 ---Check's if your running on v0.7 instances of Psych Engine.
 ---@param exact? boolean If true, it will look for v0.7.3 specifically.
----@return boolean
+---@return boolean # The results of the check.
 local function isLegacy(exact)
 	return nilCheck(exact, false) and version == '0.7.3' or (version <= '0.7.3' and version >= '0.7')
 end
 ---Check's if your running on v0.6 instances of Psych Engine.
 ---@param exact? boolean If true, it will look for v0.6.3 specifically.
----@return boolean
+---@return boolean # The results of the check.
 local function isBeta(exact)
 	return nilCheck(exact, false) and version == '0.6.3' or (version <= '0.6.3' and version >= '0.6')
 end
+-- it would be funny to add smth like "isOutdated" but nah, lol
 
 ---String interpolation in lua!
----@param ... any
----@return string
+---@param ... any The data to be interpolated.
+---@return string # The interpolated data.
 local function f(...)
 	---@param value table
 	---@return string
@@ -66,32 +70,31 @@ local function f(...)
 	return final
 end
 
----Split's a piece of string into an array.
----@param text string
----@param delimiter string
----@return string[]
-local function textSplit(text, delimiter)
+---Split's a piece of string into an array of your typing choice.
+---@generic input
+---@param text string The text to split.
+---@param delimiter string What to split by.
+---@param renderer? fun(index: integer, piece: string): input Allows you to customize how the data gets returned.
+---@return input[] # The split up content.
+local function textSplit(text, delimiter, renderer)
 	local splitTxt = stringSplit(text, delimiter) ---@type string[]
+	local finalArray = {} ---@type input[]
 	for index, value in pairs(splitTxt) do
-		splitTxt[index] = stringTrim(value)
+		if type(renderer) == 'function' then
+			table.insert(finalArray, renderer(stringTrim(value)))
+		else
+			table.insert(finalArray, stringTrim(value))
+		end
 	end
-	return splitTxt
+	return finalArray
 end
 
 ---Useful for prepping imports for runHaxeCode usage.
----
----## example:
----```lua
----runHaxeCode(f(
----	prepImports({'flixel.addons.display.FlxBackdrop'}),
----	[[ var ahh:FlxBackdrop = new FlxBackdrop(Paths.image('characters/BOYFRIEND')); ]]
----))
----```
----@param imports string[] The imports to prep.
----@return string
-local function prepImports(imports)
+---@param ... string[] The imports to prep.
+---@return string # If on v0.7 or higher, this returns the imports pre-prepped in the haxe language.
+local function prepImports(...)
 	local final = ''
-	for index, path in pairs(imports) do
+	for index, path in pairs({...}) do
 		if isBeta() then
 			runHaxeCode(f([[
 				var preppedImports:Array<String> = ']], path, [['.split('.');
@@ -107,28 +110,35 @@ local function prepImports(imports)
 end
 
 ---Checks if the charting mode is active.
----@return boolean
+---@return boolean # The state of charting mode.
 local function isChartingMode()
 	return getPropertyFromClass(f(isBeta() and '' or 'states.', 'PlayState'), 'chartingMode')
 end
 
----A shortcut function for debugPrint with some extra stuff to it.
+---A shortcut function for debugPrint, with some extra stuff to it.
+---@todo Add "color" argument.
 ---@param value any What you wish to debugPrint.
----@param isDebug? boolean If true, this will only print when in charting mode.
+---@param isDebug? boolean If true, this will only print when in charting mode or lua debug mode.
 local function trace(value, isDebug)
+	-- for eventual color support
+	local function code()
+		-- wrapped in "f" jic you pop a single table in here
+		debugPrint(f(value))
+	end
 	if nilCheck(isDebug, false) then
 		if isChartingMode() or luaDebugMode then
-			debugPrint(f(value))
+			code()
 		end
-	else -- wrapped in "f" jic you pop a single table in here
-		debugPrint(f(value))
+	else
+		code()
 	end
 end
 
 ---Returns the contents of a json file.
+---##### Thanks to my friend @atlasgamer27 for helping me figure this out! lol
 ---@param path string The file path.
 ---@param printWarning? boolean If true, it will print a warning if the file doesn't exist.
----@return table | nil
+---@return table | any[] | nil # The jsons contents.
 local function parseJson(path, printWarning)
 	local filePath = f(path, '.json')
 	local fileContents = ''
@@ -142,12 +152,9 @@ local function parseJson(path, printWarning)
 	end
 
 	runHaxeCode(f(
-		prepImports({'haxe.format.JsonParser'}),
-		[[ var fileContents:String = ']], fileContents, [[';
-		var jsonData = new JsonParser(fileContents).doParse();
-		setVar('jsonData_varHolder', jsonData); ]]
+		prepImports('haxe.format.JsonParser'),
+		[[ setVar('jsonData_varHolder', new JsonParser(']], fileContents, [[').doParse()); ]]
 	))
-
 	return getProperty('jsonData_varHolder')
 end
 
@@ -189,6 +196,7 @@ local function _setOnScripts(variable, value, ignoreSelf, exclusions, luaOnly)
 end
 
 ---Used to make callOnScripts usage compatible with older versions.
+---@todo Add a workaround for v0.7 always returning true.
 ---@param func string The function name.
 ---@param arguments? any[] The function arguments.
 ---@param ignoreStops? boolean Wether to ignore "Function_Stop" calls.
@@ -196,7 +204,7 @@ end
 ---@param excludedScripts? string[] Specific scripts to not call upon.
 ---@param excludedValues? any[] Values to prevent from being returned.
 ---@param luaOnly? boolean If true, it only calls callOnLuas when on newer versions.
----@return any returnValue Note: Always returns true on 0.7.3 for some reason? Might add a workaround, but I'm unsure atm.
+---@return any # Note: Always returns true on v0.7 for some reason? Might add a workaround, but I'm unsure atm.
 local function _callOnScripts(func, arguments, ignoreStops, ignoreSelf, excludedScripts, excludedValues, luaOnly)
 	arguments = nilCheck(arguments, {})
 	ignoreStops = nilCheck(ignoreStops, false)
@@ -214,7 +222,7 @@ local function _callOnScripts(func, arguments, ignoreStops, ignoreSelf, excluded
 	end
 end
 
--- This Scripts Utility Functions.
+----- [[ The Scripts Utility Functions ]] -----
 
 ---Helper class for X and Y positions.
 ---@class LuaPoint
@@ -223,6 +231,7 @@ LuaPoint = {
 	y = 0 ---@type number The Y position.
 }
 
+---The stage position offset.
 ---@type LuaPoint
 stageOffsets = nil
 
@@ -234,7 +243,6 @@ local function setStageOffsets(x, y)
 		x = nilCheck(x, 0),
 		y = nilCheck(y, 0)
 	})
-
 end
 
 ---@todo Maybe have it return an array to allow both lua and haxe at the same time?
@@ -329,21 +337,27 @@ function applyStageOffsets(tag)
 	setProperty(f(tag, '.y'), getProperty(f(tag, '.y')) + stageOffsets.y)
 end
 
--- Where the magic happens!
+----- [[ Where the magic happens! ]] -----
 
 function onCreate()
-	-- trace(f('Is New: ', isNew(true), ', Is Legacy: ', isLegacy(true), ', Is Beta: ', isBeta(true)), true)
+	--[[ trace(f(
+		'\nIs New: ', isNew(true), ' (v1.0.4)\n',
+		'Is Legacy: ', isLegacy(true), ' (v0.7.3)\n',
+		'Is Beta: ', isBeta(true), ' (v0.6.3)\n',
+		'Is Outdated: ', version < '0.6', ' (v0.5.2)'
+	), true) ]]
+
 	if version < '0.6' then
 		trace(f(
-			'Hey this script only works on Psych v0.6 and above!\n',
+			'\nHey, this script only works on Psych v0.6 and above!\n',
 			'Psych v', version, ' isn\'t compatible with the script whatsoever!'
 		))
 		return close(true)
 	elseif not (isNew(true) or isLegacy(true) or isBeta(true)) then
 		trace(f(
-			'Hey this script might not work properly on Psych v', version, '!\n',
-			'If you wish for the script to work appropriately please use versions...\n',
-			'v0.6.3, v0.7.3 or v1.0.4! If the script works perfectly fine then just ignore this message.'
+			'\nHey, this script might not work properly on Psych v', version, '!\n',
+			'If you wish for the script to work appropriately, please use versions...\n',
+			'v0.6.3, v0.7.3 or v1.0.4! If the script works perfectly fine, then just ignore this message.'
 		), true)
 	end
 end
@@ -361,6 +375,7 @@ function onCreatePost()
 	callFunc('onStageCreationPost', {true})
 
 	if isBeta() then
+		-- onEventPushed fix
 		for i = 1, getProperty('eventNotes.length') do
 			onEventPushed(
 				getProperty(f('eventNotes[', i ,'].event')),
@@ -377,16 +392,14 @@ function onEventPushed(name, value1, value2)
 	end
 
 	if name == 'Change The Stage' then
-		local valueContents = {v1 = {}, v2 = {}}
-		valueContents.v1 = textSplit(value1, ',')
-		valueContents.v2 = textSplit(value2, ',')
+		local stage = textSplit(value1, ',')[1] ---@type string
 
-		if checkFileExists(stageScript(valueContents.v1[1])) and valueContents.v1[1] ~= curStage then
-			addScript(f('stages/', valueContents.v1[1]))
+		if checkFileExists(stageScript(stage)) and stage ~= curStage then
+			addScript(f('stages/', stage))
 			callFunc('precacheStage')
-			-- removeScript(f('stages/', valueContents.v1[1])) -- can't do this for some reason
-		elseif valueContents.v1[1] ~= curStage then
-			trace(f('Stage "', valueContents.v1[1], '" doesn\'t exist.'), true)
+			-- removeScript(f('stages/', stage)) -- can't do this for some reason
+		elseif stage ~= curStage then
+			trace(f('Stage "', stage, '" doesn\'t exist.'), true)
 		end
 	end
 end
@@ -416,29 +429,45 @@ local function isGfNil()
 	return getProperty('isGfNil_varHolder')
 end
 
+---@enum CharType
+CharType = {
+	BF = 0,
+	DAD = 1,
+	GF = 2
+}
+
 function onEvent(name, value1, value2)
 	if name == 'Change Character' then
-		if value1 == 'gf' or value1 == 'girlfriend' or value1 == '1' then
+		local charType = nil ---@type CharType
+		if stringTrim(value1:lower()) == 'gf' or stringTrim(value1:lower()) == 'girlfriend' then
+			charType = CharType.GF
+		elseif stringTrim(value1:lower()) == 'dad' or stringTrim(value1:lower()) == 'opponent' then
+			charType = CharType.DAD
+		elseif not isNew() then
+			charType = math.floor(tonumber(value1))
+			if type(charType) ~= 'number' then
+				charType = CharType.BF
+			end
+		else
+			charType = CharType.BF
+		end
+
+		if charType == CharType.GF then
 			if isGfNil() then
 				lastGf = value2
 			end
-		elseif value1 == 'dad' or value1 == 'opponent' or value1 == '0' then
-		else -- le bf
 		end
 	end
 
 	if name == 'Change The Stage' then
 		local valueContents = {v1 = {}, v2 = {}}
 
-		valueContents.v1 = textSplit(value1, ',')
+		valueContents.v1 = textSplit(value1, ',') ---@type string[]
 		local snapChanges = nilCheck(valueContents.v1[2], 'false') == 'true'
 		local snapCamera = nilCheck(valueContents.v1[3], 'false') == 'true'
 
-		valueContents.v2 = textSplit(value2, ',')
-		for i = 1, 2 do
-			valueContents.v2[i] = tonumber(nilCheck(valueContents.v2[i], '0'))
-			valueContents.v2[i] = nilCheck(valueContents.v2[i], 0)
-		end
+		valueContents.v2 = textSplit(value2, ',', function (index, piece) return nilCheck(tonumber(piece), 0.0) end)
+		while #valueContents.v2 < 2 do table.insert(valueContents.v2, 0) end
 
 		---@type string, string
 		local oldStage, newStage = curStage, valueContents.v1[1]
@@ -453,6 +482,7 @@ function onEvent(name, value1, value2)
 			-- Stage Elements
 
 			---The stage to change to.
+			---@todo Parse all jsons at once and put them in an array for repeated use.
 			---@type StageFile
 			local stageGet = parseJson(stageScript(newStage, true):gsub('.json', ''), isChartingMode())
 
