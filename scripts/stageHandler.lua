@@ -10,32 +10,23 @@
 
 ----- [[ Utility Functions ]] -----
 
----Check's if the input is nil.
----@generic input
----@param variable any The data to check.
----@param ifNil input What should be returned if nil.
----@return input # The checked data.
-local function nilCheck(variable, ifNil)
-	return (type(variable) == 'nil' or variable == nil) and ifNil or variable
-end
-
 ---Check's if your running on v1 instances of Psych Engine.
 ---@param exact? boolean If true, it will look for v1.0.4 specifically.
 ---@return boolean # The results of the check.
 local function isNew(exact)
-	return nilCheck(exact, false) and version == '1.0.4' or version >= '1.0'
+	return (exact or false) and version == '1.0.4' or version >= '1.0'
 end
 ---Check's if your running on v0.7 instances of Psych Engine.
 ---@param exact? boolean If true, it will look for v0.7.3 specifically.
 ---@return boolean # The results of the check.
 local function isLegacy(exact)
-	return nilCheck(exact, false) and version == '0.7.3' or (version <= '0.7.3' and version >= '0.7')
+	return (exact or false) and version == '0.7.3' or (version <= '0.7.3' and version >= '0.7')
 end
 ---Check's if your running on v0.6 instances of Psych Engine.
 ---@param exact? boolean If true, it will look for v0.6.3 specifically.
 ---@return boolean # The results of the check.
 local function isBeta(exact)
-	return nilCheck(exact, false) and version == '0.6.3' or (version <= '0.6.3' and version >= '0.6')
+	return (exact or false) and version == '0.6.3' or (version <= '0.6.3' and version >= '0.6')
 end
 -- it would be funny to add smth like "isOutdated" but nah, lol
 
@@ -64,7 +55,7 @@ local function f(...)
 	for index, value in pairs({...}) do
 		local part = value
 		part = type(part) == 'table' and stringifyTable(part) or tostring(part)
-		part = nilCheck(part, 'nil')
+		part = part or 'nil'
 		final = final .. part
 	end
 	return final
@@ -125,7 +116,7 @@ local function trace(value, isDebug)
 		-- wrapped in "f" jic you pop a single table in here
 		debugPrint(f(value))
 	end
-	if nilCheck(isDebug, false) then
+	if isDebug or false then
 		if isChartingMode() or luaDebugMode then
 			code()
 		end
@@ -185,9 +176,9 @@ local function _setOnScripts(variable, value, ignoreSelf, exclusions, luaOnly)
 			varHolder.resize(0);
 		]])
 	else
-		ignoreSelf = nilCheck(ignoreSelf, false)
-		exclusions = nilCheck(exclusions, {})
-		if nilCheck(luaOnly, false) then
+		ignoreSelf = ignoreSelf or false
+		exclusions = exclusions or {}
+		if luaOnly or false then
 			setOnLuas(variable, value, ignoreSelf, exclusions)
 		else
 			setOnScripts(variable, value, ignoreSelf, exclusions)
@@ -206,15 +197,15 @@ end
 ---@param luaOnly? boolean If true, it only calls callOnLuas when on newer versions.
 ---@return any # Note: Always returns true on v0.7 for some reason? Might add a workaround, but I'm unsure atm.
 local function _callOnScripts(func, arguments, ignoreStops, ignoreSelf, excludedScripts, excludedValues, luaOnly)
-	arguments = nilCheck(arguments, {})
-	ignoreStops = nilCheck(ignoreStops, false)
-	ignoreSelf = nilCheck(ignoreSelf, true)
-	excludedScripts = nilCheck(excludedScripts, {})
+	arguments = arguments or {}
+	ignoreStops = ignoreStops or false
+	ignoreSelf = ignoreSelf or true
+	excludedScripts = excludedScripts or {}
 	if isBeta() then
 		return callOnLuas(func, arguments, ignoreSelf, excludedScripts)
 	else
-		excludedValues = nilCheck(excludedValues, {})
-		if nilCheck(luaOnly, false) then
+		excludedValues = excludedValues or {}
+		if luaOnly or false then
 			return callOnLuas(func, arguments, ignoreStops, ignoreSelf, excludedScripts, excludedValues)
 		else
 			return callOnScripts(func, arguments, ignoreStops, ignoreSelf, excludedScripts, excludedValues)
@@ -240,8 +231,8 @@ stageOffsets = nil
 ---@param y number The Y offset.
 local function setStageOffsets(x, y)
 	_setOnScripts('stageOffsets', {
-		x = nilCheck(x, 0),
-		y = nilCheck(y, 0)
+		x = x or 0,
+		y = y or 0
 	})
 end
 
@@ -251,7 +242,7 @@ end
 ---@return string
 local function stageScript(stage, isJson)
 	local hehePath = f('stages/', stage)
-	if nilCheck(isJson, false) then
+	if isJson or false then
 		if checkFileExists(f(hehePath, '.json')) then
 			return f(hehePath, '.json')
 		end
@@ -293,7 +284,7 @@ end
 ---@param path string The script path.
 ---@param ignoreAlreadyRunning? boolean If true, it will add the script again if it's already added.
 local function addScript(path, ignoreAlreadyRunning)
-	ignoreAlreadyRunning = nilCheck(ignoreAlreadyRunning, false)
+	ignoreAlreadyRunning = ignoreAlreadyRunning or false
 	if checkFileExists(f(path, '.lua')) then
 		addLuaScript(path, ignoreAlreadyRunning)
 	end
@@ -463,10 +454,10 @@ function onEvent(name, value1, value2)
 		local valueContents = {v1 = {}, v2 = {}}
 
 		valueContents.v1 = textSplit(value1, ',') ---@type string[]
-		local snapChanges = nilCheck(valueContents.v1[2], 'false') == 'true'
-		local snapCamera = nilCheck(valueContents.v1[3], 'false') == 'true'
+		local snapChanges = (valueContents.v1[2] or 'false') == 'true'
+		local snapCamera = (valueContents.v1[3] or 'false') == 'true'
 
-		valueContents.v2 = textSplit(value2, ',', function (index, piece) return nilCheck(tonumber(piece), 0.0) end)
+		valueContents.v2 = textSplit(value2, ',', function (index, piece) return tonumber(piece) or 0 end)
 		while #valueContents.v2 < 2 do table.insert(valueContents.v2, 0) end
 
 		---@type string, string
@@ -489,20 +480,20 @@ function onEvent(name, value1, value2)
 			---The finalized file.
 			---@type StageFile
 			local jsonFile = {
-				directory = nilCheck(stageGet.directory, StageBase.directory),
-				defaultZoom = nilCheck(stageGet.defaultZoom, StageBase.defaultZoom),
-				isPixelStage = nilCheck(stageGet.isPixelStage, StageBase.isPixelStage),
-				stageUI = nilCheck(stageGet.stageUI, StageBase.stageUI),
+				directory = stageGet.directory or StageBase.directory,
+				defaultZoom = stageGet.defaultZoom or StageBase.defaultZoom,
+				isPixelStage = stageGet.isPixelStage or StageBase.isPixelStage,
+				stageUI = stageGet.stageUI or StageBase.stageUI,
 
-				boyfriend = nilCheck(stageGet.boyfriend, StageBase.boyfriend),
-				girlfriend = nilCheck(stageGet.girlfriend, StageBase.girlfriend),
-				opponent = nilCheck(stageGet.opponent, StageBase.opponent),
-				hide_girlfriend = nilCheck(stageGet.hide_girlfriend, StageBase.hide_girlfriend),
+				boyfriend = stageGet.boyfriend or StageBase.boyfriend,
+				girlfriend = stageGet.girlfriend or StageBase.girlfriend,
+				opponent = stageGet.opponent or StageBase.opponent,
+				hide_girlfriend = stageGet.hide_girlfriend or StageBase.hide_girlfriend,
 
-				camera_boyfriend = nilCheck(stageGet.camera_boyfriend, StageBase.camera_boyfriend),
-				camera_opponent = nilCheck(stageGet.camera_opponent, StageBase.camera_opponent),
-				camera_girlfriend = nilCheck(stageGet.camera_girlfriend, StageBase.camera_girlfriend),
-				camera_speed = nilCheck(stageGet.camera_speed, StageBase.camera_speed)
+				camera_boyfriend = stageGet.camera_boyfriend or StageBase.camera_boyfriend,
+				camera_opponent = stageGet.camera_opponent or StageBase.camera_opponent,
+				camera_girlfriend = stageGet.camera_girlfriend or StageBase.camera_girlfriend,
+				camera_speed = stageGet.camera_speed or StageBase.camera_speed
 			}
 
 			setStageOffsets(valueContents.v2[1], valueContents.v2[2])
@@ -547,25 +538,25 @@ function onEvent(name, value1, value2)
 			if not isGfNil() then changeCharXY('gf', defaultGirlfriendX, defaultGirlfriendY) end
 			changeCharXY('boyfriend', defaultBoyfriendX, defaultBoyfriendY)
 
-			setProperty('opponentCameraOffset[0]', nilCheck(jsonFile.camera_opponent[1], 0))
-			setProperty('opponentCameraOffset[1]', nilCheck(jsonFile.camera_opponent[2], 0))
-			setProperty('girlfriendCameraOffset[0]', nilCheck(jsonFile.camera_girlfriend[1], 0))
-			setProperty('girlfriendCameraOffset[1]', nilCheck(jsonFile.camera_girlfriend[2], 0))
-			setProperty('boyfriendCameraOffset[0]', nilCheck(jsonFile.camera_boyfriend[1], 0))
-			setProperty('boyfriendCameraOffset[1]', nilCheck(jsonFile.camera_boyfriend[2], 0))
+			setProperty('opponentCameraOffset[0]', jsonFile.camera_opponent[1] or 0)
+			setProperty('opponentCameraOffset[1]', jsonFile.camera_opponent[2] or 0)
+			setProperty('girlfriendCameraOffset[0]', jsonFile.camera_girlfriend[1] or 0)
+			setProperty('girlfriendCameraOffset[1]', jsonFile.camera_girlfriend[2] or 0)
+			setProperty('boyfriendCameraOffset[0]', jsonFile.camera_boyfriend[1] or 0)
+			setProperty('boyfriendCameraOffset[1]', jsonFile.camera_boyfriend[2] or 0)
 
-			setProperty('cameraSpeed', nilCheck(jsonFile.camera_speed, 1))
+			setProperty('cameraSpeed', jsonFile.camera_speed or 1)
 
 			runHaxeCode('game.moveCameraSection();')
-			setProperty('defaultCamZoom', nilCheck(jsonFile.defaultZoom, 0.9))
+			setProperty('defaultCamZoom', jsonFile.defaultZoom or 0.9)
 			if snapCamera then
 				runHaxeCode('FlxG.camera.snapToTarget();')
 				setProperty('camGame.zoom', getProperty('defaultCamZoom'))
 			end
 			if isBeta() then
-				setPropertyFromClass('PlayState', 'isPixelStage', nilCheck(jsonFile.isPixelStage, false))
+				setPropertyFromClass('PlayState', 'isPixelStage', jsonFile.isPixelStage or false)
 			else
-				setPropertyFromClass('states.PlayState', 'stageUI', nilCheck(jsonFile.stageUI, nilCheck(jsonFile.isPixelStage, false) and 'pixel' or 'normal'))
+				setPropertyFromClass('states.PlayState', 'stageUI', jsonFile.stageUI or ((jsonFile.isPixelStage or false) and 'pixel' or 'normal'))
 			end
 
 			_setOnScripts('curStage', newStage) -- Stage Addition
