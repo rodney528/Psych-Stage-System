@@ -348,13 +348,27 @@ function onCreate()
 	end
 end
 
+local lastGf = ''
+local lastAlpha = 1 ---@type number
 function onCreatePost()
+	lastGf = getPropertyFromClass(f(isBeta() and '' or 'states.', 'PlayState'), 'SONG.gfVersion') ---@type string
 	if stageOffsets == nil then setStageOffsets() end
 	_setOnScripts('curStage', curStage)
 	if not isBeta() then runHaxeCode(getTextFromFile('scripts/backend/callbacks.hx')) end
 	addScript(f('stages/', curStage))
 	callFunc('precacheStage')
 	callFunc('onStageCreation', {true})
+	callFunc('onStageCreationPost', {true})
+
+	if isBeta() then
+		for i = 1, getProperty('eventNotes.length') do
+			onEventPushed(
+				getProperty(f('eventNotes[', i ,'].event')),
+				getProperty(f('eventNotes[', i ,'].value1')),
+				getProperty(f('eventNotes[', i ,'].value2'))
+			)
+		end
+	end
 end
 
 function onEventPushed(name, value1, value2)
@@ -371,6 +385,8 @@ function onEventPushed(name, value1, value2)
 			addScript(f('stages/', valueContents.v1[1]))
 			callFunc('precacheStage')
 			-- removeScript(f('stages/', valueContents.v1[1])) -- can't do this for some reason
+		elseif valueContents.v1[1] ~= curStage then
+			trace(f('Stage "', valueContents.v1[1], '" doesn\'t exist.'), true)
 		end
 	end
 end
@@ -400,8 +416,6 @@ local function isGfNil()
 	return getProperty('isGfNil_varHolder')
 end
 
-local lastGf = getPropertyFromClass(f(isBeta() and '' or 'states.', 'PlayState'), 'SONG.gfVersion') ---@type string
-local lastAlpha = 1 ---@type number
 function onEvent(name, value1, value2)
 	if name == 'Change Character' then
 		if value1 == 'gf' or value1 == 'girlfriend' or value1 == '1' then
@@ -514,8 +528,8 @@ function onEvent(name, value1, value2)
 
 			runHaxeCode('game.moveCameraSection();')
 			setProperty('defaultCamZoom', nilCheck(jsonFile.defaultZoom, 0.9))
-            if snapCamera then
-                runHaxeCode('FlxG.camera.snapToTarget();')
+			if snapCamera then
+				runHaxeCode('FlxG.camera.snapToTarget();')
 				setProperty('camGame.zoom', getProperty('defaultCamZoom'))
 			end
 			if isBeta() then
@@ -528,6 +542,7 @@ function onEvent(name, value1, value2)
 			if checkFileExists(stageScript(newStage)) then
 				-- addScript(f('stages/', newStage)) -- basically useless rn
 				callFunc('onStageCreation', {snapChanges})
+				callFunc('onStageCreationPost', {snapChanges})
 			end
 		else
 			trace(f('Stage "', newStage, '" doesn\'t exist.'), true)
